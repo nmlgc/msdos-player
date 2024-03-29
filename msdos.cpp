@@ -893,6 +893,63 @@ BOOL MySetConsoleTextAttribute(HANDLE hConsoleOutput, WORD wAttributes)
 	return TRUE;
 }
 
+void read_cursor_pos(HANDLE hStdout, COORD *pos)
+{
+	HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+	DWORD count;
+	INPUT_RECORD ir;
+	bool esc_found = false;
+	char buf[20];
+	int bpos = 0;
+	memset(&buf, 0, 20);
+	pos->X = 1;
+	pos->Y = 1;
+	
+	WriteConsoleA(hStdout, "\x1b[6n", 4, NULL, NULL);
+	while(ReadConsoleInputA(hStdin, &ir, 1, &count)) {
+		if((ir.EventType != KEY_EVENT)) {
+			continue;
+		}
+		if(esc_found) {
+			buf[bpos] = ir.Event.KeyEvent.uChar.AsciiChar;
+			if(buf[bpos] == 'R') {
+				break;
+			}
+			bpos++;
+		}
+		else if(ir.Event.KeyEvent.uChar.AsciiChar == 0x1b) {
+			esc_found = true;
+		}
+	}
+	buf[bpos + 1] = 0;
+	sscanf(buf, "[%hd;%hdR", &pos->Y, &pos->X);
+}
+				
+bool update_console_input();
+BOOL MyGetConsoleScreenBufferInfo(HANDLE hConsoleOutput, PCONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo)
+{
+	if(use_vt) {
+		COORD maxsize = {9999,9999};	
+		enter_service_lock();
+		update_console_input();
+		read_cursor_pos(hConsoleOutput, &lpConsoleScreenBufferInfo->dwCursorPosition);
+		MySetConsoleCursorPosition(hConsoleOutput, maxsize);
+		read_cursor_pos(hConsoleOutput, &lpConsoleScreenBufferInfo->dwSize);
+		lpConsoleScreenBufferInfo->dwCursorPosition.X--;
+		lpConsoleScreenBufferInfo->dwCursorPosition.Y--;
+		MySetConsoleCursorPosition(hConsoleOutput, lpConsoleScreenBufferInfo->dwCursorPosition);
+		lpConsoleScreenBufferInfo->srWindow.Left = 0;
+		lpConsoleScreenBufferInfo->srWindow.Top = 0;
+		lpConsoleScreenBufferInfo->srWindow.Right = lpConsoleScreenBufferInfo->dwSize.X - 1;
+		lpConsoleScreenBufferInfo->srWindow.Bottom = lpConsoleScreenBufferInfo->dwSize.Y - 1;
+		lpConsoleScreenBufferInfo->wAttributes = 7;
+		leave_service_lock();
+	} else {
+		return GetConsoleScreenBufferInfo(hConsoleOutput, lpConsoleScreenBufferInfo);
+	}
+	return TRUE;
+}
+
 #else
 void MyWriteConsoleOutputCharAttrA(HANDLE hConsoleOutput, LPCSTR lpCharacter, LPCSTR attributes, DWORD nLength, COORD dwWriteCoord)
 {
@@ -905,6 +962,7 @@ void MyWriteConsoleOutputCharAttrA(HANDLE hConsoleOutput, LPCSTR lpCharacter, LP
 #define MySetConsoleCursorPosition SetConsoleCursorPosition
 #define MySetConsoleTitleA SetConsoleTitleA
 #define MySetConsoleTextAttribute SetConsoleTextAttribute
+#define MyGetConsoleScreenBufferInfo GetConsoleScreenBufferInfo
 #endif
 
 void vram_flush()
@@ -3739,7 +3797,16 @@ int main(int argc, char *argv[], char *envp[])
 		SetConsoleMode(hStdout, mode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 	}
 	
-	get_console_buffer_success = (GetConsoleScreenBufferInfo(hStdout, &csbi) != 0);
+	SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
+	
+	if(use_service_thread) {
+		InitializeCriticalSection(&input_crit_sect);
+		InitializeCriticalSection(&key_buf_crit_sect);
+		InitializeCriticalSection(&putch_crit_sect);
+		main_thread_id = GetCurrentThreadId();
+	}
+	
+	get_console_buffer_success = (MyGetConsoleScreenBufferInfo(hStdout, &csbi) != 0);
 	get_console_cursor_success = use_vt ? false : (GetConsoleCursorInfo(hStdout, &ci) != 0);
 	get_console_font_success = get_console_font_info(&fi);
 
@@ -3783,15 +3850,6 @@ int main(int argc, char *argv[], char *envp[])
 	scr_top = csbi.srWindow.Top;
 	cursor_moved = false;
 	cursor_moved_by_crtc = false;
-	
-	SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
-	
-	if(use_service_thread) {
-		InitializeCriticalSection(&input_crit_sect);
-		InitializeCriticalSection(&key_buf_crit_sect);
-		InitializeCriticalSection(&putch_crit_sect);
-		main_thread_id = GetCurrentThreadId();
-	}
 	
 	key_buf_char = new FIFO(256);
 	key_buf_scan = new FIFO(256);
@@ -4102,7 +4160,7 @@ bool update_console_input()
 					if(ir[i].Event.MouseEvent.dwEventFlags & MOUSE_MOVED) {
 						if(mouse.hidden == 0 || mouse.enabled_ps2) {
 							// NOTE: if restore_console_size, console is not scrolled
-							if(!restore_console_size && csbi.srWindow.Bottom == 0) {
+							if(!restore_console_size && csbi.srWindow.Bottom == 0 && !use_vt) {
 								GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
 							}
 							// FIXME: character size is always 8x8 ???
@@ -6585,7 +6643,7 @@ void msdos_putch_tmp(UINT8 data, unsigned int_num, UINT8 reg_ah)
 	out[q] = '\0';
 	
 	if(cursor_moved_by_crtc) {
-		if(!restore_console_size) {
+		if(!restore_console_size && !use_vt) {
 			GetConsoleScreenBufferInfo(hStdout, &csbi);
 			scr_top = csbi.srWindow.Top;
 		}
@@ -6597,7 +6655,7 @@ void msdos_putch_tmp(UINT8 data, unsigned int_num, UINT8 reg_ah)
 	if(q == 1 && msdos_symbol_code_check(out[0], int_num, reg_ah)) {
 		const char *dummy = " ";
 		WriteConsoleA(hStdout, dummy, 1, NULL, NULL);
-		GetConsoleScreenBufferInfo(hStdout, &csbi);
+		MyGetConsoleScreenBufferInfo(hStdout, &csbi);
 		if(csbi.dwCursorPosition.X > 0) {
 			co.X = csbi.dwCursorPosition.X - 1;
 			co.Y = csbi.dwCursorPosition.Y;
@@ -6612,7 +6670,7 @@ void msdos_putch_tmp(UINT8 data, unsigned int_num, UINT8 reg_ah)
 		WriteConsoleA(hStdout, out, 1, NULL, NULL);
 	} else if(q == 1 && out[0] == 0x08) {
 		// back space
-		GetConsoleScreenBufferInfo(hStdout, &csbi);
+		MyGetConsoleScreenBufferInfo(hStdout, &csbi);
 		if(csbi.dwCursorPosition.X > 0) {
 			co.X = csbi.dwCursorPosition.X - 1;
 			co.Y = csbi.dwCursorPosition.Y;
@@ -6629,7 +6687,7 @@ void msdos_putch_tmp(UINT8 data, unsigned int_num, UINT8 reg_ah)
 	}
 	p = 0;
 	
-	if(!restore_console_size) {
+	if(!restore_console_size && !use_vt) {
 		GetConsoleScreenBufferInfo(hStdout, &csbi);
 		scr_top = csbi.srWindow.Top;
 	}
@@ -8027,7 +8085,7 @@ void pcbios_set_console_size(int width, int height, bool clr_screen)
 void pcbios_update_cursor_position()
 {
 	CONSOLE_SCREEN_BUFFER_INFO csbi;
-	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+	MyGetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
 	if(!restore_console_size) {
 		scr_top = csbi.srWindow.Top;
 	}
@@ -8387,7 +8445,7 @@ inline void pcbios_int_10h_0eh()
 	COORD co;
 	
 	if(cursor_moved_by_crtc) {
-		if(!restore_console_size) {
+		if(!restore_console_size && !use_vt) {
 			GetConsoleScreenBufferInfo(hStdout, &csbi);
 			scr_top = csbi.srWindow.Top;
 		}
@@ -8553,19 +8611,17 @@ inline void pcbios_int_10h_13h()
 		if(mem[0x462] == CPU_BH) {
 			HANDLE hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 			CONSOLE_SCREEN_BUFFER_INFO csbi;
-			GetConsoleScreenBufferInfo(hStdout, &csbi);
+			MyGetConsoleScreenBufferInfo(hStdout, &csbi);
 			MySetConsoleCursorPosition(hStdout, co);
 			
-			if(csbi.wAttributes != CPU_BL) {
-				MySetConsoleTextAttribute(hStdout, CPU_BL);
-			}
+			MySetConsoleTextAttribute(hStdout, CPU_BL);
 			WriteConsoleA(hStdout, &mem[ofs], CPU_CX, NULL, NULL);
 			
 			if(csbi.wAttributes != CPU_BL) {
 				MySetConsoleTextAttribute(hStdout, csbi.wAttributes);
 			}
 			if(CPU_AL == 0x00) {
-				if(!restore_console_size) {
+				if(!restore_console_size && !use_vt) {
 					GetConsoleScreenBufferInfo(hStdout, &csbi);
 					scr_top = csbi.srWindow.Top;
 				}
@@ -8585,10 +8641,10 @@ inline void pcbios_int_10h_13h()
 		if(mem[0x462] == CPU_BH) {
 			HANDLE hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 			CONSOLE_SCREEN_BUFFER_INFO csbi;
-			GetConsoleScreenBufferInfo(hStdout, &csbi);
+			MyGetConsoleScreenBufferInfo(hStdout, &csbi);
 			MySetConsoleCursorPosition(hStdout, co);
 			
-			WORD wAttributes = csbi.wAttributes;
+			WORD wAttributes = -1;
 			for(int i = 0; i < CPU_CX; i++, ofs += 2) {
 				if(wAttributes != mem[ofs + 1]) {
 					MySetConsoleTextAttribute(hStdout, mem[ofs + 1]);
@@ -19282,7 +19338,7 @@ int msdos_init(int argc, char *argv[], char *envp[], int standard_env)
 	// bios data area
 	HANDLE hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 	CONSOLE_SCREEN_BUFFER_INFO csbi;
-	GetConsoleScreenBufferInfo(hStdout, &csbi);
+	MyGetConsoleScreenBufferInfo(hStdout, &csbi);
 //	CONSOLE_FONT_INFO cfi;
 //	GetCurrentConsoleFont(hStdout, FALSE, &cfi);
 	
