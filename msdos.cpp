@@ -922,6 +922,15 @@ void read_cursor_pos(HANDLE hStdout, COORD *pos)
 		}
 	}
 	buf[bpos + 1] = 0;
+	if(strstr(buf, ";;")) { // work around bug in win11 conhost
+		int len = bpos >> 1;
+		int i;
+		for(i = 0; i < len; i++) {
+			buf[i] = buf[(i + 1) << 1];
+		}
+		buf[i] = 'R';
+		buf[i + 1] = 0;
+	}
 	sscanf(buf, "[%hd;%hdR", &pos->Y, &pos->X);
 }
 				
@@ -929,7 +938,7 @@ bool update_console_input();
 BOOL MyGetConsoleScreenBufferInfo(HANDLE hConsoleOutput, PCONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo)
 {
 	if(use_vt) {
-		COORD maxsize = {9999,9999};	
+		COORD maxsize = {9998,9998};	
 		enter_service_lock();
 		update_console_input();
 		read_cursor_pos(hConsoleOutput, &lpConsoleScreenBufferInfo->dwCursorPosition);
