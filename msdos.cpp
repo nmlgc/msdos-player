@@ -923,6 +923,7 @@ void read_cursor_pos(HANDLE hStdout, COORD *pos)
 	}
 	buf[bpos + 1] = 0;
 	if(strstr(buf, ";;")) { // work around bug in win11 conhost
+		ReadConsoleInputA(hStdin, &ir, 1, &count);
 		int len = bpos >> 1;
 		int i;
 		for(i = 0; i < len; i++) {
@@ -4183,36 +4184,51 @@ bool update_console_input()
 								mouse.status_alt |= 1;
 							}
 						}
-					} else if(ir[i].Event.MouseEvent.dwEventFlags == 0) {
-						for(int j = 0; j < MAX_MOUSE_BUTTONS; j++) {
-							static const DWORD bits[] = {
-								FROM_LEFT_1ST_BUTTON_PRESSED,	// left
-								RIGHTMOST_BUTTON_PRESSED,	// right
-								FROM_LEFT_2ND_BUTTON_PRESSED,	// middle
-							};
-							bool prev_status = mouse.buttons[j].status;
-							mouse.buttons[j].status = ((ir[i].Event.MouseEvent.dwButtonState & bits[j]) != 0);
-							
-							if(!prev_status && mouse.buttons[j].status) {
-								mouse.buttons[j].pressed_times++;
-								mouse.buttons[j].pressed_position.x = mouse.position.x;
-								mouse.buttons[j].pressed_position.y = mouse.position.x;
-								if(j < 2) {
-									mouse.status_alt |= 2 << (j * 2);
-								}
-								mouse.status |= 2 << (j * 2);
-							} else if(prev_status && !mouse.buttons[j].status) {
-								mouse.buttons[j].released_times++;
-								mouse.buttons[j].released_position.x = mouse.position.x;
-								mouse.buttons[j].released_position.y = mouse.position.x;
-								if(j < 2) {
-									mouse.status_alt |= 4 << (j * 2);
-								}
-								mouse.status |= 4 << (j * 2);
+					}
+					for(int j = 0; j < MAX_MOUSE_BUTTONS; j++) {
+						static const DWORD bits[] = {
+							FROM_LEFT_1ST_BUTTON_PRESSED,	// left
+							RIGHTMOST_BUTTON_PRESSED,	// right
+							FROM_LEFT_2ND_BUTTON_PRESSED,	// middle
+						};
+						bool prev_status = mouse.buttons[j].status;
+						mouse.buttons[j].status = ((ir[i].Event.MouseEvent.dwButtonState & bits[j]) != 0);
+
+						if(!prev_status && mouse.buttons[j].status) {
+							mouse.buttons[j].pressed_times++;
+							mouse.buttons[j].pressed_position.x = mouse.position.x;
+							mouse.buttons[j].pressed_position.y = mouse.position.x;
+							if(j < 2) {
+								mouse.status_alt |= 2 << (j * 2);
 							}
+							mouse.status |= 2 << (j * 2);
+						} else if(prev_status && !mouse.buttons[j].status) {
+							mouse.buttons[j].released_times++;
+							mouse.buttons[j].released_position.x = mouse.position.x;
+							mouse.buttons[j].released_position.y = mouse.position.x;
+							if(j < 2) {
+								mouse.status_alt |= 4 << (j * 2);
+							}
+							mouse.status |= 4 << (j * 2);
 						}
 					}
-				} else if(ir[i].EventType & KEY_EVENT) {
+					if(ir[i].Event.MouseEvent.dwEventFlags & MOUSE_WHEELED) {
+						INT16 wheeldir = (INT16)(ir[i].Event.MouseEvent.dwButtonState >> 16);
+						ir[i].EventType = KEY_EVENT;
+						ir[i].Event.KeyEvent.bKeyDown = TRUE;
+						ir[i].Event.KeyEvent.wRepeatCount = 1;
+						ir[i].Event.KeyEvent.dwControlKeyState = 0x80000000;
+						ir[i].Event.KeyEvent.uChar.AsciiChar = 0;
+						if(wheeldir > 0) {
+							ir[i].Event.KeyEvent.wVirtualKeyCode = VK_UP;
+							ir[i].Event.KeyEvent.wVirtualScanCode = 0xe048;
+						} else {
+							ir[i].Event.KeyEvent.wVirtualKeyCode = VK_DOWN;
+							ir[i].Event.KeyEvent.wVirtualScanCode = 0xe050;
+						}							
+					}
+				}
+				if(ir[i].EventType & KEY_EVENT) {
 					// update keyboard flags in bios data area
 					if(ir[i].Event.KeyEvent.dwControlKeyState & CAPSLOCK_ON) {
 						mem[0x417] |= 0x40;
@@ -4431,6 +4447,11 @@ bool update_console_input()
 					result = key_changed = true;
 					// IME may be on and it may causes screen scroll up and cursor position change
 					cursor_moved = true;
+					if(ir[i].Event.KeyEvent.dwControlKeyState == 0x80000000) {
+						ir[i].Event.KeyEvent.bKeyDown = FALSE;
+						ir[i].Event.KeyEvent.dwControlKeyState = 0;
+						i--;
+					}
 				}
 			}
 		}
