@@ -1655,25 +1655,30 @@ void debugger_main()
 			}
 			if(stricmp(params[0], "D") == 0) {
 				if(num <= 3) {
+					bool pmode = CPU_STAT_PM && !CPU_STAT_VM86;
 					if(num >= 2) {
 						data_seg = debugger_get_seg(params[1], data_seg);
 						data_ofs = debugger_get_ofs(params[1]);
 					}
 					UINT32 end_seg = data_seg;
 					UINT32 end_ofs = data_ofs + 8 * 16 - 1;
-					if(num == 3) {
+					if(!pmode && num == 3) {
 						end_seg = debugger_get_seg(params[2], data_seg);
 						end_ofs = debugger_get_ofs(params[2]);
 					}
-					UINT64 start_addr = (data_seg << 4) + data_ofs;
-					UINT64 end_addr = (end_seg << 4) + end_ofs;
+					UINT64 start_addr = CPU_TRANS_CODE_ADDR(data_seg, data_ofs);
+					UINT64 end_addr = CPU_TRANS_CODE_ADDR(end_seg, end_ofs);
 //					bool is_sjis = false;
 					
 					for(UINT64 addr = (start_addr & ~0x0f); addr <= (end_addr | 0x0f); addr++) {
 						if((addr & 0x0f) == 0) {
-							if((data_ofs = addr - (data_seg << 4)) > 0xffff) {
-								data_seg += 0x1000;
-								data_ofs -= 0x10000;
+							if(!pmode) {
+							 	if((data_ofs = addr - (data_seg << 4)) > 0xffff) {
+									data_seg += 0x1000;
+									data_ofs -= 0x10000;
+								}
+							} else if(addr > start_addr) {
+								data_ofs += 16;
 							}
 							telnet_printf("%06X:%04X ", data_seg, data_ofs);
 							memset(buffer, 0, sizeof(buffer));
@@ -1701,7 +1706,7 @@ void debugger_main()
 							telnet_printf("  %s\n", buffer);
 						}
 					}
-					if((data_ofs = (end_addr + 1) - (data_seg << 4)) > 0xffff) {
+					if(!pmode && (data_ofs = (end_addr + 1) - (data_seg << 4)) > 0xffff) {
 						data_seg += 0x1000;
 						data_ofs -= 0x10000;
 					}
@@ -1881,6 +1886,13 @@ void debugger_main()
 				} else {
 					telnet_printf("invalid parameter number\n");
 				}
+#if defined(HAS_I386)
+			} else if(stricmp(params[0], "SELBASE") == 0) {
+				if(CPU_STAT_PM && !CPU_STAT_VM86)
+					telnet_printf("%08x\n", CPU_TRANS_CODE_ADDR(debugger_get_val(params[1]), 0));
+				else
+					telnet_printf("invalid selector\n");
+#endif
 			} else if(stricmp(params[0], "S") == 0) {
 				if(num >= 4) {
 					UINT32 cur_seg = debugger_get_seg(params[1], data_seg);
@@ -2598,6 +2610,7 @@ void debugger_main()
 				telnet_printf("T [<count>] - trace (step in)\n");
 				telnet_printf("Q - quit\n");
 				telnet_printf("X - show dos process info\n");
+				telnet_printf("SELINFO - show pm segment descriptor\n");
 				
 				telnet_printf("> <filename> - output logfile\n");
 				telnet_printf("< <filename> - input commands from file\n");
