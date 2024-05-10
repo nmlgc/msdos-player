@@ -7813,6 +7813,8 @@ int msdos_process_exec(const char *cmd, param_block_t *param, UINT8 al, bool fir
 
 void msdos_process_terminate(int psp_seg, int ret, int mem_free)
 {
+	retval = ret;
+
 	psp_t *psp = (psp_t *)(mem + (psp_seg << 4));
 	
 	*(UINT32 *)(mem + 4 * 0x22) = psp->int_22h.dw;
@@ -7866,7 +7868,6 @@ void msdos_process_terminate(int psp_seg, int ret, int mem_free)
 	memset(current_process, 0, sizeof(process_t));
 	
 	current_psp = psp->parent_psp;
-	retval = ret;
 	msdos_sda_update(current_psp);
 }
 
