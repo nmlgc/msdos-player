@@ -19045,7 +19045,6 @@ void msdos_syscall(unsigned num)
 int msdos_init(int argc, char *argv[], char *envp[], int standard_env)
 {
 	// init file handler
-	memset(file_handler, 0, sizeof(file_handler));
 	msdos_file_handler_open(0, "STDIN", _isatty(0), 0, 0x80d3, 0);
 	msdos_file_handler_open(1, "STDOUT", _isatty(1), 1, 0x80d3, 0);
 	msdos_file_handler_open(2, "STDERR", _isatty(2), 1, 0x80d3, 0);
@@ -19067,7 +19066,6 @@ int msdos_init(int argc, char *argv[], char *envp[], int standard_env)
 	_dup2(4, DUP_STDPRN);
 	
 	// init mouse
-	memset(&mouse, 0, sizeof(mouse));
 	mouse.enabled = true;	// from DOSBox
 	mouse.hidden = 1;	// hidden in default ???
 	mouse.old_hidden = 1;	// from DOSBox
@@ -19081,14 +19079,8 @@ int msdos_init(int argc, char *argv[], char *envp[], int standard_env)
 	msdos_xms_init();
 #endif
 	
-	// init process
-	memset(process, 0, sizeof(process));
-	
 	// init dtainfo
 	msdos_dta_info_init();
-	
-	// init memory
-	memset(mem, 0, sizeof(mem));
 	
 	// bios data area
 	HANDLE hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
