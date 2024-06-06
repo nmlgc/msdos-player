@@ -8,11 +8,6 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x400	// Windows NT 4.0
-//#define _WIN32_WINNT 0x500	// Windows 2000
-//#define _WIN32_WINNT 0x501	// Windows XP
-#endif
 #include <windows.h>
 #include <winioctl.h>
 #ifdef _MBCS
@@ -39,6 +34,11 @@
 #include <setupapi.h>
 #include <winsock.h>
 #include <intrin.h>
+
+// required for compatibility with the Windows 8.1 SDK
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
 
 #ifdef _DEBUG
 // _malloca is defined in both intrin.h and crtdbg.h
