@@ -349,7 +349,7 @@ typedef struct {
 	FP_REG		reg[FPU_REG_NUM]; // R0 to R7
 } FPU_STAT;
 
-#else
+#elif defined(USE_FPU)
 
 typedef enum {
 	TAG_Valid = 0,

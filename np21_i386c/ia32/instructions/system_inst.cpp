@@ -1157,7 +1157,7 @@ RDTSC(void)
 	}
 	CPU_EDX = li.HighPart;
 	CPU_EAX = li.LowPart;
-#else
+#elif defined(USE_TSC)
 	if(/*np2cfg.consttsc*/0){
 		// CPUクロックに依存しないカウンタ値にする
 		UINT64 tsc_tmp;
@@ -1183,8 +1183,9 @@ RDTSC(void)
 		CPU_EDX = ((tsc_cur >> 32) & 0xffffffff);
 		CPU_EAX = (tsc_cur & 0xffffffff);
 	}
+#else
+	ia32_panic("RDTSC: not supported in this build!");
 #endif
-//	ia32_panic("RDTSC: not implemented yet!");
 }
 
 void
