@@ -209,7 +209,7 @@ change_pm(BOOL onoff)
 void CPUCALL
 change_pg(BOOL onoff)
 {
-
+#ifdef USE_PAGING
 	if (onoff) {
 		VERBOSE(("change_pg: Entering to Paging-Mode..."));
 	} else {
@@ -217,6 +217,9 @@ change_pg(BOOL onoff)
 	}
 
 	CPU_STAT_PAGING = onoff;
+#else
+	printf("Paging not supported!");
+#endif
 }
 
 void CPUCALL
