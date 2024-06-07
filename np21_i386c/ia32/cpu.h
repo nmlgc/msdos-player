@@ -132,6 +132,7 @@
 #define USE_PAGING
 #define USE_FASTPAGING
 #define USE_VME
+#define USE_CLOCK
 #define IA32_REBOOT_ON_PANIC
 
 enum {
