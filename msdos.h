@@ -220,7 +220,7 @@ void hardware_update();
 
 // drive
 
-typedef struct {
+struct drive_param_t {
 	int initialized;
 	int valid;
 	DISK_GEOMETRY geometry;
@@ -291,7 +291,7 @@ typedef struct {
 		}
 		return(0);
 	}
-} drive_param_t;
+};
 
 drive_param_t drive_params[26] = {0};
 
@@ -1193,7 +1193,7 @@ bool int_10h_ffh_called = false;
 
 #define MAX_MOUSE_BUTTONS	2
 
-typedef struct {
+struct mouse_t {
 	bool enabled;	// from DOSBox
 	bool enabled_ps2;
 	int hidden;
@@ -1233,7 +1233,7 @@ typedef struct {
 	UINT16 hot_spot[2];
 	UINT16 screen_mask;
 	UINT16 cursor_mask;
-} mouse_t;
+};
 
 mouse_t mouse;
 
