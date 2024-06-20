@@ -119,21 +119,21 @@
 #define	IOOUTCALL	__fastcall
 #define	IOINPCALL	__fastcall
 
-#define SUPPORT_FPU_DOSBOX
-#define SUPPORT_FPU_DOSBOX2
-#define SUPPORT_FPU_SOFTFLOAT
-#define USE_FPU
-#define USE_MMX
-#define USE_3DNOW
-#define USE_SSE
-#define USE_SSE2
-#define USE_SSE3
-#define USE_TSC
-#define USE_PAGING
-#define USE_FASTPAGING
-#define USE_VME
-#define USE_CLOCK
-#define IA32_REBOOT_ON_PANIC
+#undef SUPPORT_FPU_DOSBOX
+#undef SUPPORT_FPU_DOSBOX2
+#undef SUPPORT_FPU_SOFTFLOAT
+#undef USE_FPU
+#undef USE_MMX
+#undef USE_3DNOW
+#undef USE_SSE
+#undef USE_SSE2
+#undef USE_SSE3
+#undef USE_TSC
+#undef USE_PAGING
+#undef USE_FASTPAGING
+#undef USE_VME
+#undef USE_CLOCK
+#undef IA32_REBOOT_ON_PANIC
 
 enum {
 	FPU_TYPE_SOFTFLOAT	= 0, /* Berkeley SoftFloat */
