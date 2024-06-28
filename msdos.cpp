@@ -3266,17 +3266,9 @@ int main(int argc, char *argv[], char *envp[])
 	}
 	if(argc < 2 + arg_offset) {
 #ifdef _WIN64
-	#ifdef HAS_IA32
-		fprintf(stderr, "MS-DOS Player (ia32) for Win32-x64 console\n\n");
-	#else
-		fprintf(stderr, "MS-DOS Player (" CPU_MODEL_NAME(CPU_MODEL) ") for Win32-x64 console\n\n");
-	#endif
+	fprintf(stderr, "MS-DOS Player (" CPU_MODEL_NAME(CPU_MODEL) ") for Win32-x64 console\n\n");
 #else
-	#ifdef HAS_IA32
-		fprintf(stderr, "MS-DOS Player (ia32) for Win32 console\n\n");
-	#else
-		fprintf(stderr, "MS-DOS Player (" CPU_MODEL_NAME(CPU_MODEL) ") for Win32 console\n\n");
-	#endif
+	fprintf(stderr, "MS-DOS Player (" CPU_MODEL_NAME(CPU_MODEL) ") for Win32 console\n\n");
 #endif
 		fprintf(stderr,
 			"Usage:\n\n"

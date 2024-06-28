@@ -569,3 +569,5 @@ UINT32 CPU_GET_NEXT_PC()
 	return CPU_TRANS_PAGING_ADDR(sdp->u.seg.segbase + CPU_EIP);
 }
 #endif
+
+#define CPU_MODEL_NAME(name)	"ia32, tuned for ReC98"
