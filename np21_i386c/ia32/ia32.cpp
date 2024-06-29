@@ -218,7 +218,10 @@ change_pg(BOOL onoff)
 
 	CPU_STAT_PAGING = onoff;
 #else
-	printf("Paging not supported!");
+	if (onoff) {
+		ia32_panic("Paging-Mode: not supported in this build!");
+	}
+	//VERBOSE(("Paging-Mode: not supported in this build!"));
 #endif
 }
 

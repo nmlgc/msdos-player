@@ -73,6 +73,14 @@ do { \
 /*
  * clock
  */
+#ifdef USE_CLOCK
+#define	CPU_WORKCLOCK(clock) \
+do { \
+	CPU_REMCLOCK -= (clock); \
+} while (/*CONSTCOND*/ 0)
+#else
+#define	CPU_WORKCLOCK(clock)
+#endif
 
 #define	CPU_HALT() \
 do { \
@@ -80,11 +88,6 @@ do { \
 } while (/*CONSTCOND*/ 0)
 
 #ifdef USE_CLOCK
-#define	CPU_WORKCLOCK(clock) \
-do { \
-	CPU_REMCLOCK -= (clock); \
-} while (/*CONSTCOND*/ 0)
-
 #define	IRQCHECKTERM() \
 do { \
 	if (CPU_REMCLOCK > 0) { \
@@ -93,7 +96,6 @@ do { \
 	} \
 } while (/*CONSTCOND*/ 0)
 #else
-#define	CPU_WORKCLOCK(clock)
 #define	IRQCHECKTERM()
 #endif
 
